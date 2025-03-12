@@ -134,12 +134,29 @@ const ThemeOption = styled.div<{ color: string; isSelected: boolean }>`
   border: 2px solid ${props => props.isSelected ? '#ffffff' : 'transparent'};
 `;
 
-const TypedLine = ({ text, delay = 2000 }: { text: string; delay?: number }) => {
+interface TypedLineProps {
+  text: string;
+  delay?: number;
+  onComplete?: () => void;
+  skipAnimation?: boolean;
+}
+
+const TypedLine = ({ text, delay = 2000, onComplete, skipAnimation = false }: TypedLineProps) => {
+  if (skipAnimation) {
+    if (onComplete) {
+      setTimeout(onComplete, 100); // Still call onComplete with a small delay
+    }
+    return <span>{text}</span>;
+  }
+  
   return (
     <TypeAnimation
       sequence={[
         text,
         delay,
+        () => {
+          if (onComplete) onComplete();
+        }
       ]}
       wrapper="span"
       cursor={false}
@@ -168,6 +185,7 @@ const Terminal: React.FC = () => {
   const [command, setCommand] = useState('');
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [gameState, setGameState] = useState(initialGameState);
+  const [skipAnimations, setSkipAnimations] = useState<Record<number, boolean>>({});
   const { theme, changeTheme } = useContext(ThemeContext);
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -188,12 +206,25 @@ const Terminal: React.FC = () => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
-  }, [history]);
+  }, [history, skipAnimations]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && command.trim()) {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      executeCommand(command);
+      if (command.trim()) {
+        // Execute command if there's text
+        executeCommand(command);
+      } else {
+        // Skip all current animations if input is empty
+        const updatedSkipAnimations = { ...skipAnimations };
+        
+        // Mark all entries as skipped
+        history.forEach((_, index) => {
+          updatedSkipAnimations[index] = true;
+        });
+        
+        setSkipAnimations(updatedSkipAnimations);
+      }
     }
   };
 
@@ -206,11 +237,16 @@ const Terminal: React.FC = () => {
     // Update game state
     setGameState(updatedState);
     
-    // Add to history
+    // Add to history (the new entry will not have animation skipped by default)
     setHistory(prev => [...prev, { command: trimmedCmd, result: output, isError }]);
     
     // Clear the input
     setCommand('');
+  };
+
+  const handleAnimationComplete = (index: number) => {
+    // Mark this animation as completed
+    setSkipAnimations(prev => ({ ...prev, [index]: true }));
   };
 
   const handleThemeChange = (newTheme: ColorScheme) => {
@@ -234,7 +270,7 @@ const Terminal: React.FC = () => {
       </TerminalHeader>
       
       <TerminalOutput ref={outputRef}>
-        <pre><TypedLine text={WELCOME_MESSAGE} /></pre>
+        <pre><TypedLine text={WELCOME_MESSAGE} skipAnimation={skipAnimations[-1]} onComplete={() => handleAnimationComplete(-1)} /></pre>
         
         {history.map((entry, index) => (
           <React.Fragment key={index}>
@@ -243,7 +279,11 @@ const Terminal: React.FC = () => {
               <span className="command">{entry.command}</span>
             </CommandLine>
             <OutputLine isError={entry.isError}>
-              <TypedLine text={entry.result} />
+              <TypedLine 
+                text={entry.result} 
+                skipAnimation={skipAnimations[index]} 
+                onComplete={() => handleAnimationComplete(index)}
+              />
             </OutputLine>
           </React.Fragment>
         ))}
