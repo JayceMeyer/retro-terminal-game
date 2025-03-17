@@ -20,7 +20,7 @@ export const GlobalStyle = createGlobalStyle<{ theme: ThemeType }>`
     padding: 20px;
   }
   
-  #root {
+  #app {
     height: 100%;
     width: 100%;
     display: flex;

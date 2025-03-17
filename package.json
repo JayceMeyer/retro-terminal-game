@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://jaycemeyer.github.io/retro-terminal-game",
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "git subtree push --prefix dist origin gh-pages",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
